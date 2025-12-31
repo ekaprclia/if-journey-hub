@@ -4,6 +4,8 @@ export interface User {
   email: string;
   password: string;
   name: string;
+  picture?: string;
+  googleId?: string;
   createdAt: string;
 }
 

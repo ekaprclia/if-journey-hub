@@ -1,65 +1,97 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Clock, Mail, Lock, User, ArrowLeft, Chrome } from "lucide-react";
-import { findUser, saveUser, setLoggedInUser, validateLogin } from "@/lib/storage";
+import {
+  Clock,
+  Mail,
+  Lock,
+  User,
+  ArrowLeft,
+} from "lucide-react";
+import { GoogleLogin } from "@react-oauth/google";
+import jwtDecode from "jwt-decode"; 
+import {
+  findUser,
+  saveUser,
+  setLoggedInUser,
+  validateLogin,
+} from "@/lib/storage";
 
+/* ================= TYPE ================= */
+interface GoogleJWT {
+  email: string;
+  name: string;
+  picture?: string;
+  sub: string;
+}
+
+/* ================= COMPONENT ================= */
 const Auth = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+
   const [isLogin, setIsLogin] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Form states
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
 
-  const handleLogin = async (e: React.FormEvent) => {
+  /* ================= LOGIN EMAIL ================= */
+  const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
       const user = validateLogin(email, password);
-      if (user) {
-        setLoggedInUser(user.email, user.name);
-        toast({
-          title: "Berhasil masuk!",
-          description: `Selamat datang kembali, ${user.name}!`,
-        });
-        navigate("/dashboard");
-      } else {
+
+      if (!user) {
         toast({
           title: "Gagal masuk",
           description: "Email atau password salah.",
           variant: "destructive",
         });
+        return;
       }
+
+      setLoggedInUser(user.email, user.name);
+
+      toast({
+        title: "Berhasil masuk!",
+        description: `Selamat datang kembali, ${user.name}!`,
+      });
+
+      navigate("/dashboard");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleRegister = async (e: React.FormEvent) => {
+  /* ================= REGISTER EMAIL ================= */
+  const handleRegister = (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
-      // Check if user already exists
       if (findUser(email)) {
         toast({
           title: "Registrasi gagal",
-          description: "Email sudah terdaftar. Silakan login.",
+          description: "Email sudah terdaftar.",
           variant: "destructive",
         });
         return;
       }
 
-      // Validate inputs
       if (!name.trim()) {
         toast({
           title: "Registrasi gagal",
@@ -78,7 +110,6 @@ const Auth = () => {
         return;
       }
 
-      // Save new user
       saveUser({
         email: email.toLowerCase(),
         password,
@@ -87,43 +118,69 @@ const Auth = () => {
       });
 
       setLoggedInUser(email.toLowerCase(), name.trim());
-      
+
       toast({
         title: "Registrasi berhasil!",
-        description: `Selamat datang, ${name}! Silakan lengkapi profil Anda.`,
+        description: `Selamat datang, ${name}!`,
       });
-      
+
       navigate("/dashboard");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleGoogleLogin = () => {
-    // Simulate Google login with a mock account
-    const googleEmail = `user${Date.now()}@gmail.com`;
-    const googleName = "Google User";
+  /* ================= GOOGLE LOGIN ================= */
+  const handleGoogleSuccess = (credentialResponse: any) => {
+    if (!credentialResponse.credential) return;
 
-    let user = findUser(googleEmail);
+    const decoded = jwtDecode<GoogleJWT>(
+      credentialResponse.credential
+    );
+
+    if (!decoded.email || !decoded.name) {
+      toast({
+        title: "Login Google gagal",
+        description: "Data akun Google tidak valid.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const email = decoded.email;
+    const name = decoded.name;
+
+    let user = findUser(email);
     if (!user) {
       saveUser({
-        email: googleEmail,
+        email,
         password: "google-auth",
-        name: googleName,
+        name,
         createdAt: new Date().toISOString(),
       });
     }
 
-    setLoggedInUser(googleEmail, googleName);
+    setLoggedInUser(email, name);
+
     toast({
       title: "Berhasil masuk dengan Google!",
-      description: `Selamat datang, ${googleName}!`,
+      description: `Selamat datang, ${name}!`,
     });
+
     navigate("/dashboard");
   };
 
+  const handleGoogleError = () => {
+    toast({
+      title: "Login Google gagal",
+      description: "Silakan coba lagi.",
+      variant: "destructive",
+    });
+  };
+
+  /* ================= UI ================= */
   return (
-    <div className="min-h-screen gradient-soft flex flex-col safe-area-inset">
+    <div className="min-h-screen gradient-soft flex flex-col">
       {/* Header */}
       <header className="container mx-auto px-4 py-4">
         <Button variant="ghost" size="sm" onClick={() => navigate("/")}>
@@ -132,115 +189,118 @@ const Auth = () => {
         </Button>
       </header>
 
-      {/* Main Content */}
-      <main className="flex-1 flex items-center justify-center px-4 py-6">
-        <div className="w-full max-w-md animate-scale-in">
+      {/* Content */}
+      <main className="flex-1 flex items-center justify-center px-4">
+        <div className="w-full max-w-md">
           {/* Logo */}
           <div className="text-center mb-6">
             <div className="w-14 h-14 mx-auto rounded-2xl gradient-primary flex items-center justify-center mb-3">
               <Clock className="w-7 h-7 text-primary-foreground" />
             </div>
-            <h1 className="text-xl font-bold text-foreground">IFJourney</h1>
-            <p className="text-sm text-muted-foreground">Mulai perjalanan IF Anda</p>
+            <h1 className="text-xl font-bold">IFJourney</h1>
+            <p className="text-sm text-muted-foreground">
+              Mulai perjalanan IF Anda
+            </p>
           </div>
 
-          <Card variant="elevated">
-            <CardHeader className="text-center pb-4">
-              <CardTitle className="text-xl">{isLogin ? "Masuk" : "Daftar"}</CardTitle>
-              <CardDescription className="text-sm">
+          <Card>
+            <CardHeader className="text-center">
+              <CardTitle>{isLogin ? "Masuk" : "Daftar"}</CardTitle>
+              <CardDescription>
                 {isLogin
-                  ? "Masuk ke akun Anda untuk melanjutkan"
-                  : "Buat akun baru untuk memulai"}
+                  ? "Masuk ke akun Anda"
+                  : "Buat akun baru"}
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-5">
-              <form onSubmit={isLogin ? handleLogin : handleRegister} className="space-y-4">
+
+            <CardContent className="space-y-4">
+              <form
+                onSubmit={isLogin ? handleLogin : handleRegister}
+                className="space-y-4"
+              >
                 {!isLogin && (
-                  <div className="space-y-2">
-                    <Label htmlFor="name" className="text-sm">Nama Lengkap</Label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input
-                        id="name"
-                        type="text"
-                        placeholder="Masukkan nama lengkap"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        className="pl-10 h-11"
-                        required
-                      />
-                    </div>
+                  <div>
+                    <Label>Nama Lengkap</Label>
+                    <Input
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      required
+                    />
                   </div>
                 )}
 
-                <div className="space-y-2">
-                  <Label htmlFor="email" className="text-sm">Email</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="nama@email.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="pl-10 h-11"
-                      required
-                    />
-                  </div>
+                <div>
+                  <Label>Email</Label>
+                  <Input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="password" className="text-sm">Password</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      id="password"
-                      type="password"
-                      placeholder="Masukkan password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="pl-10 h-11"
-                      required
-                      minLength={6}
-                    />
-                  </div>
+                <div>
+                  <Label>Password</Label>
+                  <Input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    minLength={6}
+                  />
                 </div>
 
-                <Button type="submit" variant="hero" className="w-full h-11" disabled={isLoading}>
-                  {isLoading ? "Memproses..." : isLogin ? "Masuk" : "Daftar"}
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={isLoading}
+                >
+                  {isLoading
+                    ? "Memproses..."
+                    : isLogin
+                    ? "Masuk"
+                    : "Daftar"}
                 </Button>
               </form>
 
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-border" />
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-card px-2 text-muted-foreground">atau</span>
-                </div>
+              <div className="text-center text-xs text-muted-foreground">
+                atau
               </div>
 
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full h-11"
-                onClick={handleGoogleLogin}
-              >
-                <Chrome className="w-4 h-4 mr-2" />
-                {isLogin ? "Masuk" : "Daftar"} dengan Google
-              </Button>
+              {/* ✅ GOOGLE LOGIN (FIXED) */}
+              <div className="flex justify-center">
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={handleGoogleError}
+                  auto_select={false}
+                  useOneTap={false}
+                />
+              </div>
 
               <div className="text-center text-sm">
-                <span className="text-muted-foreground">
-                  {isLogin ? "Belum punya akun? " : "Sudah punya akun? "}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setIsLogin(!isLogin)}
-                  className="text-primary font-medium hover:underline"
-                >
-                  {isLogin ? "Daftar sekarang" : "Masuk"}
-                </button>
+                {isLogin ? (
+                  <>
+                    Belum punya akun?{" "}
+                    <button
+                      type="button"
+                      onClick={() => setIsLogin(false)}
+                      className="text-primary font-medium hover:underline"
+                    >
+                      Daftar
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    Sudah punya akun?{" "}
+                    <button
+                      type="button"
+                      onClick={() => setIsLogin(true)}
+                      className="text-primary font-medium hover:underline"
+                    >
+                      Masuk
+                    </button>
+                  </>
+                )}
               </div>
             </CardContent>
           </Card>
