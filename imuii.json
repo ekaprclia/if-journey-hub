@@ -1,0 +1,11 @@
+{
+  "name": "IFJourney",
+  "framework": "react",
+  "language": "typescript",
+  "buildCommand": "vite build",
+  "startCommand": "npm run dev",
+  "domain": "ifjourney",
+  "email": "ekaprclia@gmail.com",
+  "secretKey": "imuii_87132eece52bd801df58830e342ff837138749bf5cff9c8a9791e3c1293ebc13",
+  "repoUrl": "https://github.com/Lab-Sisjarkom-IMUII/ifjourney-bd566683.git"
+}
