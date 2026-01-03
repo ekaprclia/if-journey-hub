@@ -1,5 +1,5 @@
 {
-  "name": "IfJourney",
+  "name": "IFJourney",
   "framework": "react",
   "language": "typescript",
   "buildCommand": "vite build",
